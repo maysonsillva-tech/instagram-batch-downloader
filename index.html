@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baixar Vídeos do Instagram em Lote</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f4f4f4; 
+            color: #333; 
+        }
+        h1 { color: #4CAF50; }
+        textarea { 
+            width: 100%; 
+            height: 150px; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 5px; 
+            resize: vertical; 
+        }
+        button { 
+            padding: 10px 20px; 
+            background-color: #4CAF50; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin-top: 10px; 
+        }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #results { 
+            margin-top: 20px; 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
+            gap: 20px; 
+        }
+        .result { 
+            border: 1px solid #ccc; 
+            padding: 15px; 
+            border-radius: 10px; 
+            background-color: white; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+        .result img { 
+            max-width: 100%; 
+            height: auto; 
+            border-radius: 5px; 
+        }
+        .result p { margin: 10px 0; }
+        .download-link { 
+            display: inline-block; 
+            padding: 8px 15px; 
+            background-color: #2196F3; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 5px; 
+        }
+        .download-link:hover { background-color: #1E88E5; }
+        .error { color: red; font-weight: bold; }
+        #download-all { margin-top: 20px; display: none; }
+        .placeholder { /* Estilo para fallback */
+            width: 100%;
+            height: 200px;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-style: italic;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Baixar Reels e Stories do Instagram</h1>
+    <p>Cole múltiplos links (um por linha). Apenas conteúdos públicos ou autorizados.</p>
+    <textarea id="links" placeholder="Cole os links aqui, um por linha..."></textarea>
+    <button id="download-btn" onclick="downloadVideos()">Processar Links</button>
+    <div id="results"></div>
+    <button id="download-all" onclick="downloadAll()">Baixar Todos</button>
+
+    <script>
+        async function downloadVideos() {
+            const textarea = document.getElementById('links');
+            const resultsDiv = document.getElementById('results');
+            const downloadBtn = document.getElementById('download-btn');
+            const downloadAllBtn = document.getElementById('download-all');
+            resultsDiv.innerHTML = '<p>Carregando...</p>';  // Indicador de loading
+            downloadBtn.disabled = true;  // Desabilita botão durante processamento
+            downloadAllBtn.style.display = 'none';  // Esconde Baixar Todos inicialmente
+
+            const links = textarea.value.split('\n').filter(link => link.trim());
+            if (links.length === 0) {
+                alert('Insira pelo menos um link!');
+                resultsDiv.innerHTML = '';
+                downloadBtn.disabled = false;
+                return;
+            }
+
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ links })
+                });
+                if (!response.ok) throw new Error('Erro na requisição');
+                
+                const data = await response.json();
+                resultsDiv.innerHTML = '';  // Limpa loading
+                data.forEach((item, index) => {
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'result';
+                    
+                    if (item.error) {
+                        resultDiv.className += ' error';
+                        resultDiv.innerHTML = `<p>${item.error}</p>`;
+                    } else {
+                        const proxyThumbnail = `/proxy-thumbnail?url=${encodeURIComponent(item.thumbnail)}`;
+                        const proxyVideo = `/download-video?url=${encodeURIComponent(item.url)}&filename=${encodeURIComponent(item.title + '.mp4')}`;
+                        resultDiv.innerHTML = `
+                            <img src="${proxyThumbnail}" alt="Thumbnail" onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\\'placeholder\\'>Thumbnail não disponível</div>' + this.parentNode.innerHTML.replace(this.outerHTML, '');">
+                            <p>Autor: ${item.uploader || 'Desconhecido'}</p>
+                            <a href="${proxyVideo}" class="download-link">Baixar Vídeo</a>
+                        `;
+                    }
+                    resultsDiv.appendChild(resultDiv);
+                });
+                if (data.some(item => !item.error)) {
+                    downloadAllBtn.style.display = 'block';  // Mostra Baixar Todos se houver downloads válidos
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<p class="error">Erro: ${error.message}</p>`;
+            } finally {
+                downloadBtn.disabled = false;
+            }
+        }
+
+        function downloadAll() {
+            const links = document.querySelectorAll('.download-link');
+            links.forEach((link, index) => {
+                setTimeout(() => {
+                    link.click();
+                }, index * 1000);  // Delay de 1s entre downloads para evitar sobrecarga no navegador/servidor
+            });
+        }
+    </script>
+</body>
+</html>
